@@ -1,22 +1,23 @@
 import streamlit as st
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
 from datetime import datetime
 import tempfile, os, smtplib
 from email.message import EmailMessage
-from reportlab.platypus import Table, TableStyle
-from reportlab.lib import colors
 
+# ---------- PAGE CONFIG ----------
 st.set_page_config(page_title="Summary & Report")
 
-# ---------- Session Check ----------
+# ---------- SESSION CHECK ----------
 if "data" not in st.session_state:
     st.error("No data found. Please enter details first.")
     st.stop()
 
 d = st.session_state.data
 
-# ---------- Calculations ----------
+# ---------- CALCULATIONS ----------
 p_sold = d["p_open"] + d["p_added"] - d["p_close"]
 d_sold = d["d_open"] + d["d_added"] - d["d_close"]
 
@@ -27,15 +28,9 @@ expected = p_revenue + d_revenue
 collected = d["cash"] + d["digital"]
 difference = collected - expected
 
-# ---------- Stock Left ----------
-petrol_closing_stock = d["p_close"]
-diesel_closing_stock = d["d_close"]
-
-petrol_price = d["p_price"]
-diesel_price = d["d_price"]
-
-petrol_stock_value = petrol_closing_stock * petrol_price
-diesel_stock_value = diesel_closing_stock * diesel_price
+# ---------- STOCK ----------
+petrol_stock_value = d["p_close"] * d["p_price"]
+diesel_stock_value = d["d_close"] * d["d_price"]
 total_stock_value = petrol_stock_value + diesel_stock_value
 
 # ---------- UI ----------
@@ -48,9 +43,9 @@ st.metric("Total Collected (₹)", round(collected, 2))
 st.metric("Fuel Stock Value (₹)", round(total_stock_value, 2))
 
 if difference < 0:
-    st.error(f"❌ Shortage: ₹{abs(round(difference,2))}")
+    st.error(f"❌ Shortage: ₹ {abs(round(difference, 2))}")
 else:
-    st.success(f"✅ Excess: ₹{round(difference,2)}")
+    st.success(f"✅ Excess: ₹ {round(difference, 2)}")
 
 # ---------- PDF FUNCTION ----------
 def generate_pdf():
@@ -58,10 +53,6 @@ def generate_pdf():
     c = canvas.Canvas(temp.name, pagesize=A4)
     w, h = A4
     y = h - 50
-
-    # ---------- LOGO ----------
-    if os.path.exists("logo.png"):
-        c.drawImage("logo.png", 40, h - 90, 120, 50, preserveAspectRatio=True)
 
     # ---------- HEADER ----------
     c.setFont("Helvetica-Bold", 20)
@@ -74,12 +65,12 @@ def generate_pdf():
 
     c.setFont("Helvetica", 11)
     c.drawString(40, y, f"Date: {d['date']}")
-    y -= 20
+    y -= 25
 
     c.line(40, y, w - 40, y)
     y -= 30
 
-    # ================= PETROL =================
+    # ---------- PETROL ----------
     c.setFillColorRGB(0.85, 0.95, 0.85)
     c.rect(40, y - 90, w - 80, 90, fill=1, stroke=0)
     c.setFillColorRGB(0, 0, 0)
@@ -91,12 +82,12 @@ def generate_pdf():
     c.drawString(50, y - 40, f"Sold: {round(p_sold,2)} L")
     c.drawRightString(w - 50, y - 40, f"Revenue: ₹ {round(p_revenue,2)}")
 
-    c.drawString(50, y - 60, f"Stock Left: {round(petrol_closing_stock,2)} L")
+    c.drawString(50, y - 60, f"Stock Left: {round(d['p_close'],2)} L")
     c.drawRightString(w - 50, y - 60, f"Stock Value: ₹ {round(petrol_stock_value,2)}")
 
-    y -= 110
+    y -= 120
 
-    # ================= DIESEL =================
+    # ---------- DIESEL ----------
     c.setFillColorRGB(0.85, 0.90, 0.97)
     c.rect(40, y - 90, w - 80, 90, fill=1, stroke=0)
     c.setFillColorRGB(0, 0, 0)
@@ -108,60 +99,46 @@ def generate_pdf():
     c.drawString(50, y - 40, f"Sold: {round(d_sold,2)} L")
     c.drawRightString(w - 50, y - 40, f"Revenue: ₹ {round(d_revenue,2)}")
 
-    c.drawString(50, y - 60, f"Stock Left: {round(diesel_closing_stock,2)} L")
+    c.drawString(50, y - 60, f"Stock Left: {round(d['d_close'],2)} L")
     c.drawRightString(w - 50, y - 60, f"Stock Value: ₹ {round(diesel_stock_value,2)}")
 
     y -= 120
 
-    # ================= TOTAL =================
-    from reportlab.platypus import Table, TableStyle
-from reportlab.lib import colors
+    # ---------- TOTAL SUMMARY TABLE ----------
+    data = [
+        ["Expected Revenue", f"₹ {round(expected, 2)}"],
+        ["Cash Collected", f"₹ {round(d['cash'], 2)}"],
+        ["Digital Payments", f"₹ {round(d['digital'], 2)}"],
+        ["Total Collected", f"₹ {round(collected, 2)}"],
+    ]
 
-# ================= TOTAL SUMMARY TABLE =================
+    table = Table(data, colWidths=[260, 140])
+    table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, -2), "Helvetica"),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 11),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("LINEBELOW", (0, -2), (-1, -2), 0.75, colors.grey),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
 
-data = [
-    ["Expected Revenue", f"₹ {round(expected, 2)}"],
-    ["Cash Collected", f"₹ {round(d['cash'], 2)}"],
-    ["Digital Payments", f"₹ {round(d['digital'], 2)}"],
-    ["Total Collected", f"₹ {round(collected, 2)}"],
-]
+    table.wrapOn(c, 400, 200)
+    table.drawOn(c, 40, y - 100)
+    y -= 140
 
-table = Table(data, colWidths=[250, 150])
+    # ---------- VARIANCE ----------
+    c.setFont("Helvetica-Bold", 12)
+    if difference < 0:
+        c.setFillColor(colors.red)
+        c.drawString(40, y, f"SHORTAGE : ₹ {abs(round(difference, 2))}")
+    else:
+        c.setFillColor(colors.green)
+        c.drawString(40, y, f"EXCESS : ₹ {round(difference, 2)}")
 
-table.setStyle(TableStyle([
-    ("FONTNAME", (0, 0), (-1, -2), "Helvetica"),
-    ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),  # Total Collected
-    ("FONTSIZE", (0, 0), (-1, -1), 11),
+    c.setFillColor(colors.black)
 
-    ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-    ("LEFTPADDING", (0, 0), (-1, -1), 8),
-    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ("TOPPADDING", (0, 0), (-1, -1), 6),
-
-    ("LINEBELOW", (0, -2), (-1, -2), 0.75, colors.grey),  # separator
-]))
-
-table.wrapOn(c, 400, 200)
-table.drawOn(c, 40, y - 100)
-
-y -= 130
-
-
-    # ================= VARIANCE =================
-   c.setFont("Helvetica-Bold", 12)
-
-if difference < 0:
-    c.setFillColor(colors.red)
-    c.drawString(40, y, f"SHORTAGE : ₹ {abs(round(difference, 2))}")
-else:
-    c.setFillColor(colors.green)
-    c.drawString(40, y, f"EXCESS : ₹ {round(difference, 2)}")
-
-c.setFillColor(colors.black)
-y -= 30
-
-    # ================= FOOTER =================
+    # ---------- FOOTER ----------
     c.line(40, 90, w - 40, 90)
     c.setFont("Helvetica-Oblique", 9)
     c.drawString(40, 70, f"Generated on {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}")
@@ -169,10 +146,10 @@ y -= 30
     c.save()
     return temp.name
 
-# ---------- EMAIL FUNCTION ----------
+# ---------- EMAIL ----------
 def send_email(receiver_email, pdf_path):
     sender_email = "monishthimmaiah11@gmail.com"
-    sender_password = "vifsawmkdjeqhiih"
+    sender_password = "vifsawmkdjeqhiih"  # ⚠️ move to secrets in production
 
     msg = EmailMessage()
     msg["Subject"] = f"Daily Petrol Bunk Report - {d['date']}"
@@ -181,12 +158,7 @@ def send_email(receiver_email, pdf_path):
     msg.set_content("Please find attached the daily petrol bunk report.")
 
     with open(pdf_path, "rb") as f:
-        msg.add_attachment(
-            f.read(),
-            maintype="application",
-            subtype="pdf",
-            filename="daily_report.pdf"
-        )
+        msg.add_attachment(f.read(), maintype="application", subtype="pdf", filename="daily_report.pdf")
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(sender_email, sender_password)
