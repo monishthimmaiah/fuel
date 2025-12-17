@@ -4,6 +4,8 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 import tempfile, os, smtplib
 from email.message import EmailMessage
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
 
 st.set_page_config(page_title="Summary & Report")
 
@@ -112,34 +114,52 @@ def generate_pdf():
     y -= 120
 
     # ================= TOTAL =================
-    c.setFont("Helvetica-Bold", 15)
-    c.drawString(40, y, "TOTAL SUMMARY")
-    y -= 20
+    from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
 
-    c.setFont("Helvetica", 12)
-    c.drawString(60, y, f"Expected Revenue : ₹ {round(expected,2)}")
-    y -= 16
-    c.drawString(60, y, f"Cash Collected   : ₹ {round(d['cash'],2)}")
-    y -= 16
-    c.drawString(60, y, f"Digital Payments : ₹ {round(d['digital'],2)}")
-    y -= 16
+# ================= TOTAL SUMMARY TABLE =================
 
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(60, y, f"Total Collected  : ₹ {round(collected,2)}")
-    y -= 25
+data = [
+    ["Expected Revenue", f"₹ {round(expected, 2)}"],
+    ["Cash Collected", f"₹ {round(d['cash'], 2)}"],
+    ["Digital Payments", f"₹ {round(d['digital'], 2)}"],
+    ["Total Collected", f"₹ {round(collected, 2)}"],
+]
+
+table = Table(data, colWidths=[250, 150])
+
+table.setStyle(TableStyle([
+    ("FONTNAME", (0, 0), (-1, -2), "Helvetica"),
+    ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),  # Total Collected
+    ("FONTSIZE", (0, 0), (-1, -1), 11),
+
+    ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ("TOPPADDING", (0, 0), (-1, -1), 6),
+
+    ("LINEBELOW", (0, -2), (-1, -2), 0.75, colors.grey),  # separator
+]))
+
+table.wrapOn(c, 400, 200)
+table.drawOn(c, 40, y - 100)
+
+y -= 130
+
 
     # ================= VARIANCE =================
-    c.setFont("Helvetica-Bold", 14)
+   c.setFont("Helvetica-Bold", 12)
 
-    if difference < 0:
-        c.setFillColorRGB(1, 0, 0)
-        c.drawString(40, y, f"SHORTAGE : ₹ {abs(round(difference,2))}")
-    else:
-        c.setFillColorRGB(0, 0.6, 0)
-        c.drawString(40, y, f"EXCESS : ₹ {round(difference,2)}")
+if difference < 0:
+    c.setFillColor(colors.red)
+    c.drawString(40, y, f"SHORTAGE : ₹ {abs(round(difference, 2))}")
+else:
+    c.setFillColor(colors.green)
+    c.drawString(40, y, f"EXCESS : ₹ {round(difference, 2)}")
 
-    c.setFillColorRGB(0, 0, 0)
-    y -= 30
+c.setFillColor(colors.black)
+y -= 30
 
     # ================= FOOTER =================
     c.line(40, 90, w - 40, 90)
