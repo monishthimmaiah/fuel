@@ -34,7 +34,7 @@ diesel_stock_value = d["d_close"] * d["d_price"]
 total_stock_value = petrol_stock_value + diesel_stock_value
 
 # ---------- UI ----------
-st.title("📊 Daily Summary")
+st.title("Daily Summary")
 
 st.metric("Petrol Sold (L)", round(p_sold, 2))
 st.metric("Diesel Sold (L)", round(d_sold, 2))
@@ -45,7 +45,7 @@ st.metric("Fuel Stock Value (₹)", round(total_stock_value, 2))
 if difference < 0:
     st.error(f"❌ Shortage: ₹ {abs(round(difference, 2))}")
 else:
-    st.success(f"✅ Excess: ₹ {round(difference, 2)}")
+    st.success(f" Excess: ₹ {round(difference, 2)}")
 
 # ---------- PDF FUNCTION ----------
 def generate_pdf():
